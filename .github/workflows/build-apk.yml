@@ -34,30 +34,22 @@ jobs:
           APP=$(ls android/app/build.gradle.kts 2>/dev/null || ls android/app/build.gradle)
           echo "Patching $APP"
           if [[ "$APP" == *.kts ]]; then
-            cat >> "$APP" <<'EOF'
-
-android { compileOptions { isCoreLibraryDesugaringEnabled = true } }
-dependencies { coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4") }
-EOF
+            printf "\nandroid { compileOptions { isCoreLibraryDesugaringEnabled = true } }\ndependencies { coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.1.4\") }\n" >> "$APP"
           else
-            cat >> "$APP" <<'EOF'
-
-android { compileOptions { coreLibraryDesugaringEnabled true } }
-dependencies { coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4' }
-EOF
+            printf "\nandroid { compileOptions { coreLibraryDesugaringEnabled true } }\ndependencies { coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4' }\n" >> "$APP"
           fi
 
       - name: Razorpay proguard rules
         run: |
           mkdir -p android/app
-          cat >> android/app/proguard-rules.pro <<'RULES'
--keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
--keep class com.razorpay.** { *; }
--dontwarn com.razorpay.**
--optimizations !method/inlining/*
--keepattributes JavascriptInterface
--keepattributes *Annotation*
-RULES
+          cat << 'EOF' | sed 's/^[[:space:]]*//' > android/app/proguard-rules.pro
+          -keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+          -keep class com.razorpay.** { *; }
+          -dontwarn com.razorpay.**
+          -optimizations !method/inlining/*
+          -keepattributes JavascriptInterface
+          -keepattributes *Annotation*
+          EOF
 
       - run: flutter pub get
 
