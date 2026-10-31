@@ -1,0 +1,70 @@
+name: Build APK
+
+# Builds a release APK in the cloud and uploads it as a downloadable artifact.
+# Run it from the GitHub "Actions" tab (Run workflow), or it runs on every push to main.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # Generate the android/ios platform scaffolding for this project.
+      # Keeps lib/, pubspec.yaml and the custom AndroidManifest.xml.
+      - name: Generate platform files
+        run: flutter create .
+
+      # flutter_local_notifications needs Java 8+ desugaring enabled.
+      - name: Enable core-library desugaring
+        run: |
+          APP=$(ls android/app/build.gradle.kts 2>/dev/null || ls android/app/build.gradle)
+          echo "Patching $APP"
+          if [[ "$APP" == *.kts ]]; then
+            cat >> "$APP" <<'EOF'
+
+android { compileOptions { isCoreLibraryDesugaringEnabled = true } }
+dependencies { coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4") }
+EOF
+          else
+            cat >> "$APP" <<'EOF'
+
+android { compileOptions { coreLibraryDesugaringEnabled true } }
+dependencies { coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4' }
+EOF
+          fi
+
+      - name: Razorpay proguard rules
+        run: |
+          mkdir -p android/app
+          cat >> android/app/proguard-rules.pro <<'RULES'
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-keep class com.razorpay.** { *; }
+-dontwarn com.razorpay.**
+-optimizations !method/inlining/*
+-keepattributes JavascriptInterface
+-keepattributes *Annotation*
+RULES
+
+      - run: flutter pub get
+
+      - run: flutter build apk --release --dart-define=API=https://naitriassociatellp.com/api/app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naitri-app-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
